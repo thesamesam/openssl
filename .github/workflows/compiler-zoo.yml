@@ -14,6 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # We enable LTO for the latest compilers only (because it's a more exptensive build)
+        # as an additional job to get more coverage.
         zoo: [
           {
             cc: gcc-7,
@@ -32,7 +34,11 @@ jobs:
             distro: ubuntu-22.04
           }, {
             cc: gcc-12,
-            distro: ubuntu-22.04
+            distro: ubuntu-22.04,
+          }, {
+            cc: gcc-12,
+            distro: ubuntu-22.04,
+            lto: -flto=4
           }, {
             cc: clang-6.0,
             distro: ubuntu-20.04
@@ -60,6 +66,18 @@ jobs:
           }, {
             cc: clang-14,
             distro: ubuntu-22.04
+          }, {
+            cc: clang-14,
+            distro: ubuntu-22.04,
+            # Clang 14.0.0 seems to take a *long* time to build some of the fuzz infra
+            # with -O3 + LTO
+            lto: -O2 -flto -flto-jobs=4
+          }, {
+            cc: clang-14,
+            distro: ubuntu-22.04,
+            # Clang 14.0.0 seems to take a *long* time to build some of the fuzz infra
+            # with -O3 + LTO
+            lto: -O2 -flto=thin -flto-jobs=4
           }
         ]
     # We set per-compiler now to allow testing with both older and newer sets
@@ -76,11 +94,11 @@ jobs:
     - name: config
       run: |
         CC=${{ matrix.zoo.cc }} ./config --banner=Configured no-shared \
-            -Wall -Werror enable-fips --strict-warnings
+            ${{ matrix.zoo.lto}} -Wall -Werror enable-fips --strict-warnings
 
     - name: config dump
       run: ./configdata.pm --dump
     - name: make
-      run: make -s -j4
+      run: make -j4
     - name: make test
       run: make test HARNESS_JOBS=${HARNESS_JOBS:-4}
