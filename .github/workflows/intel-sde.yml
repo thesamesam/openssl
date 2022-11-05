@@ -1,0 +1,54 @@
+# Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
+#
+# Licensed under the Apache License 2.0 (the "License").  You may not use
+# this file except in compliance with the License.  You can obtain a copy
+# in the file LICENSE in the source distribution or at
+# https://www.openssl.org/source/license.html
+
+name: Intel SDE CI
+
+on: [pull_request, push]
+
+#on:
+#  schedule:
+#    - cron: '0 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        sde_variant: [
+          '',
+          '-ptr_check -null_check -align_checker_all -align_checker_stderr',
+          #'-cet -cet_abort -cet_call_stack -cet_stderr',
+        ]
+        variant: [
+          '',
+          'enable-asan',
+          'enable-ubsan',
+        ]
+        include:
+          - variant: 'enable-asan enable-ubsan'
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v3
+    - name: download
+      run: |
+        wget -q https://downloadmirror.intel.com/751535/sde-external-9.14.0-2022-10-25-lin.tar.xz
+        tar xf sde-external-9.14.0-2022-10-25-lin.tar.xz
+        cd sde-external-9.14.0-2022-10-25-lin
+
+    - name: config
+      run: |
+        sde-external-9.14.0-2022-10-25-lin/sde64 -follow-subprocess ${{matrix.sde_variant}} -- ./config --banner=Configured \
+            ${{matrix.variant}} -Wall -Werror --strict-warnings enable-fips
+    - name: config dump
+      run: sde-external-9.14.0-2022-10-25-lin/sde64 -follow-subprocess ${{matrix.sde_variant}} -- ./configdata.pm --dump
+    - name: make
+      run: sde-external-9.14.0-2022-10-25-lin/sde64 -follow-subprocess ${{matrix.sde_variant}} -- make -j1
+    - name: make test
+      run: sde-external-9.14.0-2022-10-25-lin/sde64 -follow-subprocess ${{matrix.sde_variant}} -- make test HARNESS_JOBS=${HARNESS_JOBS:-1}
